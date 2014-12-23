@@ -59,12 +59,12 @@ public class AgentNode extends Node{
         attachChild(people_geo);
         
         
-        bodyPhy = new RigidBodyControl(0f);
+        bodyPhy = new RigidBodyControl(0.1f);
         
         
         people_geo.addControl(bodyPhy);
         bodyPhy.setPhysicsLocation(new Vector3f(10f,10f,10f));
-//        initBehavior();
+        initBehavior();
     }
 
    
