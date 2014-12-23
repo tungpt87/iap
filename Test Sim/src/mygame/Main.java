@@ -123,8 +123,6 @@ public class Main extends SimpleApplication {
 		        	pos.z += 0.1f;
 		        }
 				agentNode.getBodyPhy().setPhysicsLocation(pos);
-				//cam.setLocation(people_phy.getPhysicsLocation());
-                                System.out.println("Agent Body: "+agentNode.getBodyPhy().isActive());
 			}
                         
         	
@@ -151,10 +149,7 @@ public class Main extends SimpleApplication {
         cam.setLocation(new Vector3f(10,35,10));
         bulletAppState.startPhysics();
         PhysicsSpace.getPhysicsSpace().enableDebug(this.assetManager);
-//        brainsAppState.start(); 
-        
-//        agentNode.getBodyPhy().activate();
-//        env.getBodyControl().activate();
+        brainsAppState.start();
     }
 
     
@@ -165,7 +160,7 @@ public class Main extends SimpleApplication {
         //TODO: add update code
         super.simpleUpdate(tpf);
 
-        
+        agentNode.getBodyPhy().activate();
 //        brainsAppState.update(tpf);
     }
 
