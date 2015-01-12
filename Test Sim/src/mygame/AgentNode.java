@@ -13,39 +13,96 @@ import com.jme3.scene.Node;
 import com.jme3.scene.shape.Box;
 import com.jme3.texture.Texture;
 import com.jme3.ai.agents.Agent;
-import com.jme3.ai.agents.behaviors.npc.SimpleMoveBehavior;
 import com.jme3.ai.agents.behaviors.npc.steering.PathFollowBehavior;
 import com.jme3.ai.navmesh.NavMeshPathfinder;
 import com.jme3.ai.navmesh.Path;
 import com.jme3.ai.navmesh.Path.Waypoint;
+import com.jme3.animation.AnimChannel;
+import com.jme3.animation.AnimControl;
+import com.jme3.animation.AnimEventListener;
+import com.jme3.bullet.control.BetterCharacterControl;
+import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
+import com.jme3.scene.Mesh;
+import com.jme3.scene.Spatial;
+import com.jme3.scene.VertexBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 
 /**
  *
  * @author TungPT
  */
-public class AgentNode extends Node{
-    private RigidBodyControl bodyPhy;
+public class AgentNode extends Node implements AnimEventListener{
+    private static final Logger logger = Logger.getLogger(AgentNode.class.getName());
+    private BetterCharacterControl bodyPhy;
     private SimpleMainBehavior behavior;
     private Agent agent;
-    Geometry people_geo;
+    private Geometry people_geo;
+    private boolean beh;
+    private NavMeshPathfinder pathFinder;
+    private Path path;
+    private Waypoint nextTarget=null;
+    private int wpi;
     
-    NavMeshPathfinder pathFinder;
+    //Characteristics
+    private int age;
+    private byte gender;
+    private float radius = 2f;
+    
+    //
+    private float velocity = 4;
+    
+    public int getAge() {
+        return age;
+    }
+
+    public void setAge(int age) {
+        this.age = age;
+    }
+
+    public byte getGender() {
+        return gender;
+    }
+
+    public void setGender(byte gender) {
+        this.gender = gender;
+    }
+    
+            
+            
     public SimpleMainBehavior getBehavior() {
         return behavior;
     }
 
+    /**
+     * Refers to the agent's brain
+     * @return 
+     */
     public Agent getAgent() {
         return agent;
     }
-    public RigidBodyControl getBodyPhy() {
+    
+    /**
+     * Agent's physics body
+     * @return 
+     */
+    public BetterCharacterControl getBodyPhy() {
         return bodyPhy;
     }
+    /**
+     * Constructor
+     */
     public AgentNode() {
         super("Agent");
-        Box people = new Box(2f,2f,2f);
+        //Init agent in shape of a box
+        Box people = new Box(1f,2f,1f);
         
         people_geo = new Geometry("Agent", people);
         
@@ -57,54 +114,159 @@ public class AgentNode extends Node{
         people_mat.setTexture("ColorMap", tex2);
 	people_geo.setMaterial(people_mat);
         attachChild(people_geo);
+        people_geo.setLocalTranslation(0f, 4f, 0f);
         
+        bodyPhy = new BetterCharacterControl(1.5f, 4f, 70f);
         
-        bodyPhy = new RigidBodyControl(0.1f);
+        bodyPhy.setJumpForce(new Vector3f(0,5f,0)); 
+        bodyPhy.setGravity(new Vector3f(1,100f,1));
         
-        
+        bodyPhy.warp(new Vector3f(10,2,10)); // warp character into landscape at particular location
+//        bodyPhy.setWalkDirection(new Vector3f(3f,0f,4f));
         people_geo.addControl(bodyPhy);
-        bodyPhy.setPhysicsLocation(new Vector3f(10f,10f,10f));
+
+//        bodyPhy.setMass(40f);
+//        bodyPhy.setKinematic(true);
+
         initBehavior();
     }
 
    
-    
+    /**
+     * Init Agent's behavior
+     */
     private void initBehavior(){
-        agent = new Agent("Agent", people_geo);
+//        initAgent();
         
-        agent.setMoveSpeed(5); 
+        //Init path finder
+        pathFinder = new NavMeshPathfinder(Main.app().getEnv().getNavMesh());
+        pathFinder.setPosition(new Vector3f(5f,1f,5f));     //set start position
+        pathFinder.computePath(new Vector3f(25f, 1f, 45f)); //compute path to destination
+        
+        //Get path from path finder
+        path = pathFinder.getPath();   
+        wpi = -1;
+//        //Extract list of position
+//        ArrayList<Waypoint> wayPoints = path.getWaypoints();
+//        ArrayList<Vector3f> pos = new ArrayList<>();
+//        for(Waypoint wp : wayPoints){
+//            pos.add(wp.getPosition());
+//            System.out.println(wp.getPosition().toString());
+//        }
+//        //Path Finder sometimes returns duplicated points, it's neccessary 
+//        //to remove or the PathFollowBehavior won't work
+//        pos = removeDuplicates(pos);
+//        
+//        drawPath(pos);
+        
+        //Init behavior
+//        behavior = new SimpleMainBehavior(agent);
+//        PathFollowBehavior pathFollow = new PathFollowBehavior(agent, pos, 0.1f);
+//        pathFollow.setupStrengthControl(1f);
+//        
+//        behavior.addBehavior(pathFollow);
+//        agent.setMainBehavior(behavior);
+        
+    }
+    /**
+     * Init agent's brain with attributes
+     */
+    private void initAgent(){
+        agent = new Agent("people", people_geo);
+        agent.setMoveSpeed(30); 
         agent.setRotationSpeed(30);
         //used for steering behaviors in com.jme3.ai.agents.behaviors.npc.steering
-        agent.setMass(40);
+        agent.setMass(70f);
         agent.setMaxForce(3);
-        behavior = new SimpleMainBehavior(agent);
-        SimpleMoveBehavior moveBeh = new SimpleMoveBehavior(agent);
         
-        moveBeh.setTargetPosition(new Vector3f(50f,0f,50f));
-        pathFinder = new NavMeshPathfinder(Main.app().getEnv().getNavMesh());
-        pathFinder.setPosition(this.getWorldTranslation());
-        pathFinder.computePath(new Vector3f(25f, .5f, 45f));
         
-        Path path = pathFinder.getPath();
-        
-        ArrayList<Waypoint> wayPoints = path.getWaypoints();
-        ArrayList<Vector3f> pos = new ArrayList<>();
-        
-        for(Waypoint wp : wayPoints){
-            pos.add(wp.getPosition().setY(0f));
-            System.out.println(wp.getPosition().toString());
+    }
+    /**
+     * Remove duplicates from ArrayList
+     * @param l
+     * @return 
+     */
+    public ArrayList<Vector3f> removeDuplicates(ArrayList<Vector3f> l) {
+    // ... the list is already populated
+        Set<Vector3f> s = new TreeSet<>(new Comparator<Vector3f>() {
+
+            @Override
+            public int compare(Vector3f o1, Vector3f o2) {
+
+                return ((Vector3f)o1).equals((Vector3f)o2)==true?0:1;
+            }
+        });
+        s.addAll(l);
+        Vector3f[] a = new Vector3f[s.size()];
+        s.toArray(a);
+        l = new ArrayList<>(Arrays.asList(a));
+        return (l);
+    }
+    /**
+     * Draw path from points, still hasn't worked
+     * @param points 
+     */
+    private void drawPath(ArrayList<Vector3f> points){
+        Mesh mesh = new Mesh();
+        mesh.setMode(Mesh.Mode.Lines);
+        float[] vectors = new float[points.size()*3];
+        for(int i = 0; i< vectors.length; i=i+3){
+            vectors[i]=points.get(i/3).x;
+            vectors[i+1]=points.get(i/3).y;
+            vectors[i+2]=points.get(i/3).z;
         }
-        
-        PathFollowBehavior pathFollow = new PathFollowBehavior(agent, pos, 0.5f);
-        pathFollow.setVelocity(new Vector3f(10f,0f,10f));
-        
-//        pathFollow.setActive(true);
-        behavior.addBehavior(pathFollow);
-        
-        agent.setMainBehavior(behavior);
-        
-        
-        
-        
+        int[] indices = new int[points.size()*2];
+        for(int i = 0;i<indices.length;++i)
+            indices[i] = i/2+i%2;
+        mesh.setBuffer(VertexBuffer.Type.Position, 3, vectors);
+        mesh.setBuffer(VertexBuffer.Type.Index, 2, indices);
+        mesh.updateBound();
+        Material wireMaterial = new Material(Main.app().getAssetManager(), "Common/MatDefs/Light/Lighting.j3md");
+        wireMaterial.getAdditionalRenderState().setWireframe(true);
+        wireMaterial.setBoolean("UseMaterialColors", true);
+        wireMaterial.setColor("Diffuse", ColorRGBA.Blue);
+        Geometry geo = new Geometry("Path", mesh);
+        geo.setCullHint(Spatial.CullHint.Never);
+        geo.setMaterial(wireMaterial);
+        attachChild(geo);
+    }
+
+    @Override
+    public void onAnimCycleDone(AnimControl control, AnimChannel channel, String animName) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void onAnimChange(AnimControl control, AnimChannel channel, String animName) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+    public void adjustDirectionByTarget(Waypoint waypoint){
+        Vector3f cur = people_geo.getWorldTranslation();
+        Vector3f tar = waypoint.getPosition();
+        double angle = Math.atan((tar.x-cur.x)/(tar.z-cur.z));
+        float x = (float) (Math.cos(angle)*velocity);
+        float z = (float) (Math.sin(angle)*velocity);
+        bodyPhy.setWalkDirection(new Vector3f(z,0f,x));
+        bodyPhy.setViewDirection(new Vector3f(z,0f,x));
+    }
+    public boolean didReachTarget(Waypoint waypoint){
+        logger.log(Level.INFO,"Distance to target: {0}", new Object[]{waypoint.getPosition().distance(people_geo.getWorldTranslation())});
+        return waypoint.getPosition().distance(people_geo.getWorldTranslation()) <= radius;
+    }
+    public void update(float fps){
+        if (path == null) return;
+        if (nextTarget==null || didReachTarget(nextTarget)){
+            wpi ++;
+            if (wpi < path.getWaypoints().size())
+                nextTarget = path.getWaypoints().get(wpi);
+            else {
+                bodyPhy.setWalkDirection(Vector3f.NAN);
+                return;
+            }
+        }
+        if (nextTarget != null){
+            this.adjustDirectionByTarget(nextTarget);
+            logger.log(Level.INFO, "Direction: {0} Target: {1}", new Object[]{bodyPhy.getWalkDirection().toString(), nextTarget.getPosition().toString()});
+        }
     }
 }
