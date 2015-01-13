@@ -2,3 +2,5 @@
 *.dylib
 *.DS_Store
 *.class
+*.dll
+/Test\ Sim/native_build/*
