@@ -1,0 +1,4 @@
+/Test\ Sim/build/*
+*.dylib
+*.DS_Store
+*.class
