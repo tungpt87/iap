@@ -20,6 +20,12 @@ import com.jme3.ai.navmesh.*;
 import com.jme3.animation.AnimChannel;
 import com.jme3.animation.AnimControl;
 import com.jme3.animation.AnimEventListener;
+import com.jme3.bullet.control.GhostControl;
+import com.jme3.material.Material;
+import com.jme3.math.ColorRGBA;
+import com.jme3.scene.Geometry;
+import com.jme3.scene.Mesh;
+import com.jme3.scene.debug.Arrow;
 /**
  * test
  * @author TungPT
@@ -136,7 +142,12 @@ public class Main extends SimpleApplication implements AnimEventListener{
         rootNode.attachChild(env);
         
         //Add environment's body control into physics space
-//        bulletAppState.getPhysicsSpace().add(env.getBodyControl());
+        bulletAppState.getPhysicsSpace().add(env.getBodyControl());
+        
+        for (GhostControl gc : env.getDoorControls()){
+            bulletAppState.getPhysicsSpace().add(gc);
+        }
+        
         
         //Initiate intelligent agent
         agentNode = new AgentNode();
@@ -153,14 +164,18 @@ public class Main extends SimpleApplication implements AnimEventListener{
         }
         
         //Camera config
-        flyCam.setMoveSpeed(0);
+        flyCam.setMoveSpeed(500);
         cam.setLocation(new Vector3f(0,200,0));
         bulletAppState.startPhysics();
         
         brainsAppState.start();
         
-        //Enable physics space debug, will be disable before release
-        PhysicsSpace.getPhysicsSpace().enableDebug(this.assetManager);
+        if (Config.DEBUG==true){
+            //Enable physics space debug, will be disable before release
+            PhysicsSpace.getPhysicsSpace().enableDebug(this.assetManager);
+            //Enable Axises for debuging
+            attachCoordinateAxes(Vector3f.ZERO);
+        }
     }
 
     
@@ -193,5 +208,30 @@ public class Main extends SimpleApplication implements AnimEventListener{
     @Override
     public void onAnimChange(AnimControl control, AnimChannel channel, String animName) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+    
+    private void attachCoordinateAxes(Vector3f pos){
+        Arrow arrow = new Arrow(new Vector3f(500f, 0f, 0f));
+        arrow.setLineWidth(20); // make arrow thicker
+        putShape(arrow, ColorRGBA.Red).setLocalTranslation(pos);
+        
+        arrow = new Arrow(new Vector3f(0f, 500f, 0f));
+        arrow.setLineWidth(20); // make arrow thicker
+        putShape(arrow, ColorRGBA.Green).setLocalTranslation(pos);
+
+        arrow = new Arrow(new Vector3f(0f, 0f,500f));
+        arrow.setLineWidth(20); // make arrow thicker
+        putShape(arrow, ColorRGBA.Blue).setLocalTranslation(pos);
+    }   
+ 
+    private Geometry putShape(Mesh shape, ColorRGBA color){
+        Geometry g = new Geometry("coordinate axis", shape);
+        Material mat = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.getAdditionalRenderState().setWireframe(true);
+        mat.setColor("Color", color);
+        g.setMaterial(mat);
+        rootNode.attachChild(g);
+        
+        return g;
     }
 }
