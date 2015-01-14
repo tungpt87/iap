@@ -8,9 +8,13 @@ import com.jme3.material.Material;
 import com.jme3.scene.Geometry;
 import java.io.File;
 import com.jme3.asset.TextureKey;
+import com.jme3.bullet.collision.shapes.BoxCollisionShape;
 import com.jme3.bullet.collision.shapes.CollisionShape;
+import com.jme3.bullet.control.GhostControl;
 import com.jme3.bullet.control.RigidBodyControl;
 import com.jme3.bullet.util.CollisionShapeFactory;
+import com.jme3.material.RenderState.BlendMode;
+import com.jme3.math.ColorRGBA;
 import com.jme3.math.Ray;
 import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
@@ -20,17 +24,21 @@ import com.jme3.scene.Spatial;
 import com.jme3.scene.VertexBuffer;
 import com.jme3.scene.VertexBuffer.Type;
 import com.jme3.scene.mesh.IndexBuffer;
+import com.jme3.scene.shape.Box;
 import com.jme3.texture.Texture;
 import com.jme3.util.BufferUtils;
+import java.awt.Color;
 import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import jme3tools.optimize.GeometryBatchFactory;
+import massim.Config;
 import massim.Main;
 import massim.Point;
 import massim.element.Building;
+import massim.element.Door;
 import massim.element.Level;
 import massim.element.Wall;
 import org.w3c.dom.Document;
@@ -69,6 +77,11 @@ public class Environment extends BatchNode{
     Building building;
     Level level;
     
+    com.jme3.scene.Node doorsNode;
+
+    public com.jme3.scene.Node getDoorsNode() {
+        return doorsNode;
+    }
     
     public RigidBodyControl getBodyControl() {
         return bodyControl;
@@ -82,6 +95,14 @@ public class Environment extends BatchNode{
         return mesh;
     }
     
+    public ArrayList<GhostControl> getDoorControls(){
+        ArrayList<GhostControl> gcs = new ArrayList<>(doorsNode.getQuantity());
+        for (Spatial g : doorsNode.getChildren()){
+            gcs.add(g.getControl(GhostControl.class));
+        }
+        return gcs;
+    }
+    
     /**
      * Constructor
      * @param xml : path to xml file
@@ -91,7 +112,8 @@ public class Environment extends BatchNode{
 //        xmlFilePath = xml;
 //        groundList = loadXML();
         wall_mat = new Material(Main.app().getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        TextureKey key = new TextureKey("Textures/Terrain/Pond/Pond.jpg");
+        TextureKey key = new TextureKey("Textures/Terrain/Pond/Pond1.png");
+        wall_mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
 	key.setGenerateMips(true);
                
         Texture tex = Main.app().getAssetManager().loadTexture(key);
@@ -145,19 +167,65 @@ public class Environment extends BatchNode{
         
         //Batches all objects within the environment and have the same material
         //to 1 object.
-//        GeometryBatchFactory.optimize(this);
+        GeometryBatchFactory.optimize(this);
         
         //Create the collision shape of the environment
-//        CollisionShape sceneShape = CollisionShapeFactory.createMeshShape(this.getChild(0));
-//
-//        //Create environment's body control as RigidBodyControl so it appears and 
-//        //touchable
-//        bodyControl = new RigidBodyControl(sceneShape,0f);
-//        
-//        this.getChild(0).addControl(bodyControl);
-//        buildNavMesh();
+        CollisionShape sceneShape = CollisionShapeFactory.createMeshShape(this.getChild(0));
+
+        //Create environment's body control as RigidBodyControl so it appears and 
+        //touchable
+        bodyControl = new RigidBodyControl(sceneShape,0f);
+        
+        this.getChild(0).addControl(bodyControl);
+        buildNavMesh();
+        addDoors();
     }
     
+    private void addDoors(){
+        doorsNode = new com.jme3.scene.Node("Doors");
+        this.attachChild(doorsNode);
+        for (int i = 0; i< building.getLevels().size(); i++){	
+            level = building.getLevels().get(i);
+            for (int j = 0; j<level.getDoors().size();j++){
+                Door door = level.getDoors().get(j);
+                drawDoor(door);
+            }
+                        
+            
+            
+
+        }
+    }
+    
+    private void drawDoor(Door d){
+        Material mat = new Material(Main.app().getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.getAdditionalRenderState().setWireframe(true);
+        ColorRGBA c = ColorRGBA.Pink;
+        c.set(c.getRed(), c.getGreen(), c.getBlue(), 0.0f);
+        mat.setColor("Color", c);
+        
+        double dis = Math.sqrt(Math.pow(d.getLeftPoint().x-d.getRightPoint().x, 2)+Math.pow(d.getLeftPoint().y-d.getRightPoint().y, 2));
+        Vector3f extent = new Vector3f(
+                        (float)(dis/2/Config.MODEL_SCALE), 
+                        d.getHeight()/2/Config.MODEL_SCALE, 
+                        d.getThickness());
+        Vector3f center = new Vector3f(((d.getLeftPoint().x - d.getRightPoint().x)/2+d.getRightPoint().x)/Config.MODEL_SCALE, (d.getHeight()+level.getZcoor())/Config.MODEL_SCALE, ((d.getLeftPoint().y-d.getRightPoint().y)/2+d.getRightPoint().y)/Config.MODEL_SCALE);
+        Box b = new Box(extent.x, extent.y, extent.z);
+        Geometry g = new Geometry("Door",b);
+        g.setMaterial(mat);
+        doorsNode.attachChild(g);
+        g.setLocalTranslation(center);
+        
+        
+        if (d.getLeftPoint().y > d.getRightPoint().y)
+            g.rotate(0,-(float)Math.acos((d.getLeftPoint().x-d.getRightPoint().x)/dis), 0);
+        else
+            g.rotate(0,(float)Math.acos((d.getLeftPoint().x-d.getRightPoint().x)/dis), 0);
+        
+        
+        GhostControl gc = new GhostControl(new BoxCollisionShape(extent));
+        g.addControl(gc);
+    }
     /**
      * Build Navigation mesh of the environment
      */
@@ -243,12 +311,12 @@ public class Environment extends BatchNode{
      * Build floor as a rectangle box
      */
     private void buildFloorAsBox(){
-        Vector3f center = new Vector3f(Math.abs(level.getBoundary_cor_1().x-level.getBoundary_cor_2().x)/2+Math.min(level.getBoundary_cor_1().x, level.getBoundary_cor_2().x),
-                level.getZcoor()/100f,
-                Math.abs(level.getBoundary_cor_1().y-level.getBoundary_cor_2().y)/2+Math.min(level.getBoundary_cor_1().y, level.getBoundary_cor_2().y));
-        Vector3f extend = new Vector3f(Math.abs(level.getBoundary_cor_1().x-level.getBoundary_cor_2().x)/2,
+        Vector3f center = new Vector3f(Math.abs(level.getBoundary_cor_1().x-level.getBoundary_cor_2().x)/2/Config.MODEL_SCALE+Math.min(level.getBoundary_cor_1().x, level.getBoundary_cor_2().x)/Config.MODEL_SCALE,
+                level.getZcoor()/Config.MODEL_SCALE,
+                Math.abs(level.getBoundary_cor_1().y-level.getBoundary_cor_2().y)/2/Config.MODEL_SCALE+Math.min(level.getBoundary_cor_1().y, level.getBoundary_cor_2().y)/Config.MODEL_SCALE);
+        Vector3f extend = new Vector3f(Math.abs(level.getBoundary_cor_1().x-level.getBoundary_cor_2().x)/2/Config.MODEL_SCALE,
                 5,
-                Math.abs(level.getBoundary_cor_1().y-level.getBoundary_cor_2().y)/2);
+                Math.abs(level.getBoundary_cor_1().y-level.getBoundary_cor_2().y)/2/Config.MODEL_SCALE);
         CubeBrush floor = new CubeBrush(center,extend);
         floor.setType(CSG.BrushType.ADDITIVE);
         CSGNode floor_geo = new CSGNode();
@@ -256,7 +324,8 @@ public class Environment extends BatchNode{
 //        floor_geo.setLocalTranslation(new Vector3f(30f, level.getZcoor(), 30f));
 		
 	Material floor_mat = new Material(Main.app().getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        TextureKey key3 = new TextureKey("Textures/Terrain/Pond/Pond.jpg");
+        TextureKey key3 = new TextureKey("Textures/Terrain/Pond/Pond1.png");
+        floor_mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
         key3.setGenerateMips(true);
         Texture tex3 = Main.app().getAssetManager().loadTexture(key3);
         tex3.setWrap(Texture.WrapMode.Repeat);
@@ -291,10 +360,10 @@ public class Environment extends BatchNode{
                     level.getZcoor(),
                     xs,
                     ys);
-            CSGNode line = line(new Vector3f(p1.getX()/100f,p1.getY()/100f, p1.getZ()/100f), 
-                    new Vector3f(p2.getX()/100f,p2.getY()/100f,p2.getZ()/100f),
+            CSGNode line = line(new Vector3f(p1.getX()/Config.MODEL_SCALE,p1.getY()/Config.MODEL_SCALE, p1.getZ()/Config.MODEL_SCALE), 
+                    new Vector3f(p2.getX()/Config.MODEL_SCALE,p2.getY()/Config.MODEL_SCALE,p2.getZ()/Config.MODEL_SCALE),
                     wallData.getThickness(),
-                    wallData.getHeight()/100f);
+                    wallData.getHeight()/Config.MODEL_SCALE);
             attachChild(line);   
         }
     }
@@ -321,7 +390,7 @@ public class Environment extends BatchNode{
             l.rotate(0,-(float)Math.acos((to.x-from.x)/dis), 0);
         else
             l.rotate(0,(float)Math.acos((to.x-from.x)/dis), 0);
-        l.setLocalTranslation((to.x - from.x)/2+from.x, height/2+level.getZcoor()/100f, (to.y-from.y)/2+from.y);
+        l.setLocalTranslation((to.x - from.x)/2+from.x, height/2+level.getZcoor()/Config.MODEL_SCALE, (to.y-from.y)/2+from.y);
         l.regenerate();
         
         //Collect vertices for building floor but no longer used

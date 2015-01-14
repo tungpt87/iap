@@ -58,7 +58,7 @@ public class AgentNode extends Node implements AnimEventListener{
     private float radius = 2f;
     
     //
-    private float velocity = 4;
+    private float velocity = 3;
     
     public int getAge() {
         return age;
@@ -123,12 +123,8 @@ public class AgentNode extends Node implements AnimEventListener{
         bodyPhy.setGravity(new Vector3f(1,100f,1));
         
         bodyPhy.warp(new Vector3f(10,2,10)); // warp character into landscape at particular location
-//        bodyPhy.setWalkDirection(new Vector3f(3f,0f,4f));
         people_geo.addControl(bodyPhy);
-
-//        bodyPhy.setMass(40f);
-//        bodyPhy.setKinematic(true);
-
+        
         initBehavior();
     }
 
@@ -142,8 +138,8 @@ public class AgentNode extends Node implements AnimEventListener{
         //Init path finder
         if (Main.app().getEnv().getNavMesh() != null){
             pathFinder = new NavMeshPathfinder(Main.app().getEnv().getNavMesh());
-            pathFinder.setPosition(new Vector3f(5f,1f,5f));     //set start position
-            pathFinder.computePath(new Vector3f(25f, 1f, 45f)); //compute path to destination
+            pathFinder.setPosition(people_geo.getWorldTranslation());     //set start position
+            pathFinder.computePath(new Vector3f(-50f, 1f, 70f)); //compute path to destination
 
             //Get path from path finder
             path = pathFinder.getPath();   
