@@ -224,6 +224,7 @@ public class Environment extends BatchNode{
         
         
         GhostControl gc = new GhostControl(new BoxCollisionShape(extent));
+        
         g.addControl(gc);
     }
     /**
@@ -275,49 +276,27 @@ public class Environment extends BatchNode{
         navMesh.linkCells();
         
     }
-    /**
-     * Build floor from vertices
-     * No longer used
-     */
-//    private void buildFloorFromVertices(){
-//        generateIndexes();
-//        generateLinks();
-//        for(int i = 0;i<vertices.size();i++){
-//            for(int j=0;j<vertices.size();j++)
-//                System.out.print(links[i][j]+" ");
-//            System.out.print("\n");
-//        }
-//            
-//                
-//        for(int i=0;i<vertices.size()-1;i++)
-//            for(int j=i;j<vertices.size();j++)
-//                for(int k=0;k<vertices.size();k++){
-//                    if(links[i][k]==1 && links[j][k]==1 && links[i][j]==1) {
-//                        indexes.add(i);
-//                        indexes.add(j);
-//                        indexes.add(k);
-//                    }
-//                }
-//        Mesh floorMesh = new Mesh();
-//        floorMesh.setBuffer(Type.Position, 3, BufferUtils.createFloatBuffer(vertices.toArray(new Vector3f[vertices.size()])));
-//        floorMesh.setBuffer(Type.Index, 3,BufferUtils.createIntBuffer(convertIntegers(indexes)));
-//        floorMesh.updateBound();
-//        Geometry floorGeo = new Geometry("floor", floorMesh);
-//        floorGeo.setMaterial(wall_mat);
-//        attachChild(floorGeo);
-//    }
     
     /**
      * Build floor as a rectangle box
      */
     private void buildFloorAsBox(){
+        
         Vector3f center = new Vector3f(Math.abs(level.getBoundary_cor_1().x-level.getBoundary_cor_2().x)/2/Config.MODEL_SCALE+Math.min(level.getBoundary_cor_1().x, level.getBoundary_cor_2().x)/Config.MODEL_SCALE,
                 level.getZcoor()/Config.MODEL_SCALE,
                 Math.abs(level.getBoundary_cor_1().y-level.getBoundary_cor_2().y)/2/Config.MODEL_SCALE+Math.min(level.getBoundary_cor_1().y, level.getBoundary_cor_2().y)/Config.MODEL_SCALE);
-        Vector3f extend = new Vector3f(Math.abs(level.getBoundary_cor_1().x-level.getBoundary_cor_2().x)/2/Config.MODEL_SCALE,
+        Vector3f extent = new Vector3f(Math.abs(level.getBoundary_cor_1().x-level.getBoundary_cor_2().x)/2/Config.MODEL_SCALE,
                 5,
                 Math.abs(level.getBoundary_cor_1().y-level.getBoundary_cor_2().y)/2/Config.MODEL_SCALE);
-        CubeBrush floor = new CubeBrush(center,extend);
+        
+        //TODO: If the currently built level is the first level, make the floor extent 2 times bigger
+        if (level.getZcoor() == building.getLevels().get(0).getZcoor()){
+            extent.x *= 2;
+            extent.z *=2;
+        }
+        
+        
+        CubeBrush floor = new CubeBrush(center,extent);
         floor.setType(CSG.BrushType.ADDITIVE);
         CSGNode floor_geo = new CSGNode();
         floor_geo.addBrush(floor);

@@ -22,6 +22,7 @@ import com.jme3.animation.AnimControl;
 import com.jme3.animation.AnimEventListener;
 import com.jme3.bullet.control.BetterCharacterControl;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.Ray;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Mesh;
 import com.jme3.scene.Spatial;
@@ -140,7 +141,7 @@ public class AgentNode extends Node implements AnimEventListener{
             pathFinder = new NavMeshPathfinder(Main.app().getEnv().getNavMesh());
             pathFinder.setPosition(people_geo.getWorldTranslation());     //set start position
             pathFinder.computePath(new Vector3f(-50f, 1f, 70f)); //compute path to destination
-
+            
             //Get path from path finder
             path = pathFinder.getPath();   
             wpi = -1;
@@ -148,6 +149,11 @@ public class AgentNode extends Node implements AnimEventListener{
         
 
     }
+    
+    private void initRays(){
+        Ray r;
+    }
+    
     /**
      * Init agent's brain with attributes
      */
