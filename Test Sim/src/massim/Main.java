@@ -26,11 +26,18 @@ import com.jme3.math.ColorRGBA;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Mesh;
 import com.jme3.scene.debug.Arrow;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.swing.Timer;
 /**
  * test
  * @author TungPT
  */
-public class Main extends SimpleApplication implements AnimEventListener{
+public class Main extends SimpleApplication implements AnimEventListener, ActionListener{
     private static Main app;
     private BulletAppState bulletAppState;
 	
@@ -101,6 +108,50 @@ public class Main extends SimpleApplication implements AnimEventListener{
      */
     @Override
     public void simpleInitApp() {
+        initEnvironment();
+        initAgents();
+        
+        if (Config.DEBUG==true){
+            //Enable physics space debug, will be disable before release
+            PhysicsSpace.getPhysicsSpace().enableDebug(this.assetManager);
+            //Enable Axises for debuging
+            attachCoordinateAxes(Vector3f.ZERO);
+        }
+        //Camera config
+        flyCam.setMoveSpeed(500);
+        cam.setLocation(new Vector3f(0,200,0));
+        bulletAppState.startPhysics();
+        
+        brainsAppState.start();
+        
+        //Setup timer
+        Timer updateTimer = new Timer(Config.UPDATE_CYCLE, this);
+        updateTimer.setDelay(Config.UPDATE_CYCLE);
+        updateTimer.start();
+    }
+    
+    private void clearOldModel(){
+        rootNode.detachAllChildren();
+        bulletAppState.getPhysicsSpace().destroy();
+        
+    }
+    
+    private void updateModel(){
+        try {
+            String flag = Utility.readFile(Config.FLAGS_FILE, StandardCharsets.UTF_8);
+            if (flag.equals("1")){
+                Utility.writeStringToFile(Config.FLAGS_FILE, "0");
+                clearOldModel();
+                initEnvironment();
+                initAgents();
+            }
+        } catch (IOException ex) {
+            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        
+    }
+    
+    private void initEnvironment(){
         //BrainsAppState, handles agents' behavior
         brainsAppState.setApp(this);
         stateManager.attach(brainsAppState);
@@ -117,28 +168,9 @@ public class Main extends SimpleApplication implements AnimEventListener{
         inputManager.addMapping("CharGo", new KeyTrigger(KeyInput.KEY_W));
         inputManager.addMapping("CharBack", new KeyTrigger(KeyInput.KEY_S));
         
-//        inputManager.addListener(new AnalogListener(){
-//
-//			@Override
-//			public void onAnalog(String binding, float value, float arg2) {
-//				// TODO Auto-generated method stub
-//				Vector3f pos = agentNode.getBodyPhy().getPhysicsLocation();
-//				if (binding.equals("CharLeft")) {
-//					pos.x -= 0.1f;
-//		        } else if (binding.equals("CharRight")) {
-//		        	pos.x += 0.1f;
-//		        } else if (binding.equals("CharGo")) {
-//		        	pos.z -= 0.1f;
-//		        } else if (binding.equals("CharBack")) {
-//		        	pos.z += 0.1f;
-//		        }
-//				agentNode.getBodyPhy().setPhysicsLocation(pos);       
-//			}
-//        },"CharLeft", "CharRight", "CharGo","CharBack");
-        
         //Initiate environment from xml file. This file is generated 
         //by IFCParser which is done by WenFeng
-        env = new Environment("assets/TestResult.xml");
+        env = new Environment(Config.MODEL_FILE);
         rootNode.attachChild(env);
         
         //Add environment's body control into physics space
@@ -147,8 +179,9 @@ public class Main extends SimpleApplication implements AnimEventListener{
         for (GhostControl gc : env.getDoorControls()){
             bulletAppState.getPhysicsSpace().add(gc);
         }
-        
-        
+    }
+    
+    private void initAgents(){
         //Initiate intelligent agent
         agentNode = new AgentNode();
         if (agentNode.getBodyPhy() != null)
@@ -156,30 +189,10 @@ public class Main extends SimpleApplication implements AnimEventListener{
         
         rootNode.attachChild(agentNode);
         
-//        animControl = agentNode.getControl(AnimControl.class);
-//        animControl.addListener(this);
-//        animChannel = animControl.createChannel();
         if(agentNode.getAgent() != null){
             brainsAppState.addAgent(agentNode.getAgent());
         }
-        
-        //Camera config
-        flyCam.setMoveSpeed(500);
-        cam.setLocation(new Vector3f(0,200,0));
-        bulletAppState.startPhysics();
-        
-        brainsAppState.start();
-        
-        if (Config.DEBUG==true){
-            //Enable physics space debug, will be disable before release
-            PhysicsSpace.getPhysicsSpace().enableDebug(this.assetManager);
-            //Enable Axises for debuging
-            attachCoordinateAxes(Vector3f.ZERO);
-        }
     }
-
-    
-    
     /**
      * This function is called by the game's main loop. 
      * @param tpf 
@@ -234,4 +247,9 @@ public class Main extends SimpleApplication implements AnimEventListener{
         
         return g;
     }
+    
+    public void actionPerformed(ActionEvent e){
+        updateModel();
+    }
+    
 }
