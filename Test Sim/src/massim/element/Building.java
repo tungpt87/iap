@@ -9,10 +9,13 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.logging.Logger;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
@@ -22,6 +25,7 @@ import javax.xml.transform.stream.StreamResult;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 /**
  *
@@ -46,6 +50,19 @@ public class Building {
             Level level = new Level((Element) levelNodes.item(i));
             levels.add(level);
         }
+        
+        Collections.sort(levels, new Comparator<Level>(){
+
+            @Override
+            public int compare(Level o1, Level o2) {
+                if (o1.getZcoor() < o2.getZcoor()) 
+                    return -1;
+                else if (o1.getZcoor() == o2.getZcoor())
+                    return 0;
+                else return 1;
+            }
+        
+        });
     }
     private NodeList loadXML(String xml){
         //String str = file.readString();
@@ -57,7 +74,7 @@ public class Building {
             File file = new File(xml);
             doc = db.parse(file);
         }
-        catch(Exception e){
+        catch(ParserConfigurationException | SAXException | IOException e){
             System.out.printf(e.toString());
         }
         NodeList grounds = doc.getElementsByTagName("Level");
