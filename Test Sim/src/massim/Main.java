@@ -108,6 +108,7 @@ public class Main extends SimpleApplication implements AnimEventListener, Action
      */
     @Override
     public void simpleInitApp() {
+        Config.loadConfig();
         initEnvironment();
         initAgents();
         
@@ -133,7 +134,7 @@ public class Main extends SimpleApplication implements AnimEventListener, Action
     private void clearOldModel(){
         rootNode.detachAllChildren();
         bulletAppState.getPhysicsSpace().destroy();
-        
+        DataManager.resetManager();
     }
     
     private void updateModel(){
@@ -183,7 +184,7 @@ public class Main extends SimpleApplication implements AnimEventListener, Action
     
     private void initAgents(){
         //Initiate intelligent agent
-        agentNode = new AgentNode();
+        agentNode = new AgentNode("TestAgent");
         if (agentNode.getBodyPhy() != null)
             bulletAppState.getPhysicsSpace().add(agentNode.getBodyPhy());  
         

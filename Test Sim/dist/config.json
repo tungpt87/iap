@@ -1,0 +1,10 @@
+{
+	"MODEL_SCALE" : 100.0,
+	"DEBUG" : false,
+	"MODEL_FILE" : "TestResult.xml",
+	"FLAGS_FILE" : "flags.txt",
+	"UPDATE_CYCLE" : 15000,
+	"AGENT_LOG_CSV" : "agentlog.csv",
+	"TRANSACTIONS_PER_SUBMIT" : 10,
+	"AGENT_RADIUS" : 5.0,
+}
