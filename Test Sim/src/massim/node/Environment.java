@@ -36,11 +36,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import jme3tools.optimize.GeometryBatchFactory;
 import massim.Config;
 import massim.Main;
-import massim.Point;
-import massim.element.Building;
-import massim.element.Door;
-import massim.element.Level;
-import massim.element.Wall;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
@@ -51,6 +46,18 @@ import org.critterai.nmgen.TriangleMesh;
 import org.fabian.csg.scene.CSGNode;
 import org.fabian.csg.shapes.CubeBrush;
 
+
+import jme3tools.optimize.GeometryBatchFactory;
+import ifcGeometry.Building;
+import ifcGeometry.Door;
+import ifcGeometry.Level;
+import ifcGeometry.Point;
+import ifcGeometry.Site;
+import ifcGeometry.Slab;
+import ifcGeometry.Wall;
+import ifcGeometry.Window;
+import ifcParser.IfcParser;
+import java.util.logging.Logger;
 /**
  *
  * @author TungPT
@@ -78,6 +85,8 @@ public class Environment extends BatchNode{
     Level level;
     
     com.jme3.scene.Node doorsNode;
+    
+    private Site scene = null;
 
     public com.jme3.scene.Node getDoorsNode() {
         return doorsNode;
@@ -119,12 +128,39 @@ public class Environment extends BatchNode{
         Texture tex = Main.app().getAssetManager().loadTexture(key);
         tex.setWrap(Texture.WrapMode.Repeat);
 	wall_mat.setTexture("ColorMap", tex);
-        
-        building = new Building(xml);
+        try {
+            //        building = new Building(xml);
+            load(xml);
+        } catch (Exception ex) {
+            Logger.getLogger(Environment.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+        }
         makeBuilding();
         
     }
     
+    private void load(String filePath) throws Exception {
+        if (filePath.toLowerCase().endsWith(".xml")) {
+            scene = IfcParser.load(new File(filePath));
+            if (scene == null) {
+                throw new Exception("Undefined xml format.");
+            }
+        } else if (filePath.toLowerCase().endsWith(".ifc")) {
+            if (IfcParser.parse(filePath)) {
+                scene = IfcParser.getProject();
+            } else {
+                throw new Exception("Unable parser the ifc file.");
+            }
+        } else {
+            throw new Exception("Just support ifc2x3 .ifc or defined .xml format.");
+        }
+
+        //TODO: Remove this hardcode
+        if (scene.getBuildings().size() > 0) building = scene.getBuildings().get(0);
+        // Successfully load the Site information, generate the scene node
+//        if (!generateSceneNode()) {
+//            throw new Exception("Fail to generate the node.");
+//        }
+    }
     /**
      * Parses the given XML file
      * @return : a list of node which represent floors data
@@ -190,10 +226,6 @@ public class Environment extends BatchNode{
                 Door door = level.getDoors().get(j);
                 drawDoor(door);
             }
-                        
-            
-            
-
         }
     }
     
@@ -204,12 +236,12 @@ public class Environment extends BatchNode{
         c.set(c.getRed(), c.getGreen(), c.getBlue(), 0.0f);
         mat.setColor("Color", c);
         
-        double dis = Math.sqrt(Math.pow(d.getLeftPoint().x-d.getRightPoint().x, 2)+Math.pow(d.getLeftPoint().y-d.getRightPoint().y, 2));
+        double dis = Math.sqrt(Math.pow(d.getFixPosition().getX()-d.getOpenPosition().getX(), 2)+Math.pow(d.getFixPosition().getY()-d.getOpenPosition().getY(), 2));
         Vector3f extent = new Vector3f(
                         (float)(dis/2/Config.MODEL_SCALE), 
                         d.getHeight()/2/Config.MODEL_SCALE, 
-                        d.getThickness());
-        Vector3f center = new Vector3f(((d.getLeftPoint().x - d.getRightPoint().x)/2+d.getRightPoint().x)/Config.MODEL_SCALE, (d.getHeight()+level.getZcoor())/Config.MODEL_SCALE, ((d.getLeftPoint().y-d.getRightPoint().y)/2+d.getRightPoint().y)/Config.MODEL_SCALE);
+                        d.getThickness()/Config.MODEL_SCALE);
+        Vector3f center = new Vector3f(((d.getFixPosition().getX() - d.getOpenPosition().getX())/2+d.getOpenPosition().getX())/Config.MODEL_SCALE, (d.getHeight()+level.getZLevel())/Config.MODEL_SCALE, ((d.getFixPosition().getY()-d.getOpenPosition().getY())/2+d.getOpenPosition().getY())/Config.MODEL_SCALE);
         Box b = new Box(extent.x, extent.y, extent.z);
         Geometry g = new Geometry("Door",b);
         g.setMaterial(mat);
@@ -217,10 +249,10 @@ public class Environment extends BatchNode{
         g.setLocalTranslation(center);
         
         
-        if (d.getLeftPoint().y > d.getRightPoint().y)
-            g.rotate(0,-(float)Math.acos((d.getLeftPoint().x-d.getRightPoint().x)/dis), 0);
+        if (d.getFixPosition().getY() > d.getOpenPosition().getY())
+            g.rotate(0,-(float)Math.acos((d.getFixPosition().getX()-d.getOpenPosition().getX())/dis), 0);
         else
-            g.rotate(0,(float)Math.acos((d.getLeftPoint().x-d.getRightPoint().x)/dis), 0);
+            g.rotate(0,(float)Math.acos((d.getFixPosition().getX()-d.getOpenPosition().getX())/dis), 0);
         
         
         GhostControl gc = new GhostControl(new BoxCollisionShape(extent));
@@ -235,8 +267,6 @@ public class Environment extends BatchNode{
         mesh = ((Geometry)this.getChild(0)).getMesh();
         Vector3f[] vectors3f = BufferUtils.getVector3Array(mesh.getFloatBuffer(VertexBuffer.Type.Position));
         IndexBuffer indexBuffer = mesh.getIndexBuffer();
-        
-        
         int[] indices = new int[indexBuffer.size()];
         for (int i = 0; i < indices.length; i++){
             indices[i] = indexBuffer.get(i);
@@ -249,7 +279,23 @@ public class Environment extends BatchNode{
         }
         
         //Initiates Navigation Mesh Generator
-        NavmeshGenerator meshGen = new NavmeshGenerator(1f, 2f, 0f, 1f, 45f, false, 1f, 1, true, 2, 1, 20, 1, 100, 1, 10);
+        
+        NavmeshGenerator meshGen = new NavmeshGenerator(1f, //cellSize
+                2f, //cellHeight
+                1f, //minTraversableHeight
+                1f, //maxTraversableStep
+                45f, //maxTraversableSlope
+                false, //clipLedges
+                2f, //traversableAreaBorderSize
+                5, //smoothingThreshold
+                true, //useConservativeExpansion
+                10, //minUnconnectedRegionSize
+                1, //mergeRegionSize
+                10, //maxEdgeLength
+                1, //edgeMaxDeviation
+                100, //maxVertsPerPoly
+                1, //contourSampleDistance
+                10); //contourMaxDeviation
         TriangleMesh triMesh = meshGen.build(vectors, indices, null);
         indices = triMesh.indices;
         vectors = triMesh.vertices;
@@ -282,15 +328,15 @@ public class Environment extends BatchNode{
      */
     private void buildFloorAsBox(){
         
-        Vector3f center = new Vector3f(Math.abs(level.getBoundary_cor_1().x-level.getBoundary_cor_2().x)/2/Config.MODEL_SCALE+Math.min(level.getBoundary_cor_1().x, level.getBoundary_cor_2().x)/Config.MODEL_SCALE,
-                level.getZcoor()/Config.MODEL_SCALE,
-                Math.abs(level.getBoundary_cor_1().y-level.getBoundary_cor_2().y)/2/Config.MODEL_SCALE+Math.min(level.getBoundary_cor_1().y, level.getBoundary_cor_2().y)/Config.MODEL_SCALE);
-        Vector3f extent = new Vector3f(Math.abs(level.getBoundary_cor_1().x-level.getBoundary_cor_2().x)/2/Config.MODEL_SCALE,
-                5,
-                Math.abs(level.getBoundary_cor_1().y-level.getBoundary_cor_2().y)/2/Config.MODEL_SCALE);
+        Vector3f center = new Vector3f(Math.abs(level.getMinX()-level.getMaxX())/2/Config.MODEL_SCALE+Math.min(level.getMinX(), level.getMaxX())/Config.MODEL_SCALE,
+                level.getZLevel()/Config.MODEL_SCALE,
+                Math.abs(level.getMinY()-level.getMaxY())/2/Config.MODEL_SCALE+Math.min(level.getMinY(), level.getMaxY())/Config.MODEL_SCALE);
+        Vector3f extent = new Vector3f(Math.abs(level.getMinX()-level.getMaxX())/2/Config.MODEL_SCALE,
+                level.getSlabs().get(0).getThickness()/Config.MODEL_SCALE,
+                Math.abs(level.getMinY()-level.getMaxY())/2/Config.MODEL_SCALE);
         
         //TODO: If the currently built level is the first level, make the floor extent 2 times bigger
-        if (level.getZcoor() == building.getLevels().get(0).getZcoor()){
+        if (level.getZLevel()== building.getLevels().get(0).getZLevel()){
             extent.x *= 2;
             extent.z *=2;
         }
@@ -319,29 +365,18 @@ public class Environment extends BatchNode{
      * @param wallData 
      */
     private void initiateWall(Wall wallData){
-        List<Vector2f> points = wallData.getPoints();
-        float xs = 0f;//wallData.getElementsByTagName("X");
-        float ys = 0f;//wallData.getElementsByTagName("Y");
-//        Double sX = Double.parseDouble(xs.item(0).getTextContent()),sY = Double.parseDouble(ys.item(0).getTextContent());
+        List<Point> points = wallData.getAxis();
         
         newWall = true;
         for (int i = 0; i < points.size()-1;i ++){
             
-            Vector2f startPoint = points.get(i);
-            Point p1 = new Point(startPoint.x,
-                    startPoint.y,
-                    level.getZcoor(),
-                    xs,
-                    ys);
-            Vector2f point = points.get(i+1);
-            Point p2 = new Point(point.x,
-                    point.y,
-                    level.getZcoor(),
-                    xs,
-                    ys);
-            CSGNode line = line(new Vector3f(p1.getX()/Config.MODEL_SCALE,p1.getY()/Config.MODEL_SCALE, p1.getZ()/Config.MODEL_SCALE), 
-                    new Vector3f(p2.getX()/Config.MODEL_SCALE,p2.getY()/Config.MODEL_SCALE,p2.getZ()/Config.MODEL_SCALE),
-                    wallData.getThickness(),
+            Point p1 = points.get(i);
+            
+            Point p2 = points.get(i+1);
+            
+            CSGNode line = line(new Vector3f(p1.getX()/Config.MODEL_SCALE,p1.getY()/Config.MODEL_SCALE, level.getZLevel()/Config.MODEL_SCALE), 
+                    new Vector3f(p2.getX()/Config.MODEL_SCALE,p2.getY()/Config.MODEL_SCALE,level.getZLevel()/Config.MODEL_SCALE),
+                    wallData.getThickness()/Config.MODEL_SCALE,
                     wallData.getHeight()/Config.MODEL_SCALE);
             attachChild(line);   
         }
@@ -369,64 +404,14 @@ public class Environment extends BatchNode{
             l.rotate(0,-(float)Math.acos((to.x-from.x)/dis), 0);
         else
             l.rotate(0,(float)Math.acos((to.x-from.x)/dis), 0);
-        l.setLocalTranslation((to.x - from.x)/2+from.x, height/2+level.getZcoor()/Config.MODEL_SCALE, (to.y-from.y)/2+from.y);
+        l.setLocalTranslation((to.x - from.x)/2+from.x, height/2+level.getZLevel()/Config.MODEL_SCALE, (to.y-from.y)/2+from.y);
         l.regenerate();
-        
-        //Collect vertices for building floor but no longer used
-//        if (newWall){
-//            vertices.add(new Vector3f(from.x, from.z, from.y));
-//            newWall = false;
-//        }
-//        vertices.add(new Vector3f(to.x,to.z,to.y));
         
         return l;
         
     }
     
-    /**
-     * Generates all links between vertices given by the data
-     * No longer used
-     */
-//    private void generateLinks(){
-//        links = new int[vertices.size()][vertices.size()];
-//        for (int i = 0; i < vertices.size()-1;i++)
-//            for(int j = i+1;j < vertices.size();j++){
-//                if (j-i == 1) {
-//                    links[i][j] = 1;
-//                    links[j][i] = 1;
-//                }
-//                else {
-//                    links[i][j]=0;
-//                    links[i][j]=0;
-//                }
-//            }
-//        for (int i = 0; i < vertices.size()-1;i++)
-//            for(int j = i+1;j < vertices.size();j++){
-//                if (links[i][j]==0)
-//                    if (isLinkable(i,j)) links[i][j] = 1;
-//            }
-//    }
     
-    
-    /**
-     * Check if could there be a link between a and b
-     * No longer used
-     * @param a
-     * @param b
-     * @return YES or NO
-     */
-//    private boolean isLinkable(int a, int b){
-//        boolean linkable = true;
-//        for(int i = 0;i<vertices.size()-1;i++)
-//            for(int j = i+1;j<vertices.size();j++){
-//                if (a!=i && b!=j && a!=j && b!=i && links[i][j]==1 && isIntersecting(vertices.get(a),vertices.get(b),vertices.get(i),vertices.get(j))) {
-//                    
-//                    linkable = false;
-//                    break;
-//                }
-//            }
-//        return linkable;
-//    }
     
     /**
      * Determines 2 lines are intersecting
