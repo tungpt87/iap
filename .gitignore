@@ -3,4 +3,5 @@
 *.DS_Store
 *.class
 *.dll
+agentlog.csv
 /Test\ Sim/native_build/*
