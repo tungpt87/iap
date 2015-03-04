@@ -12,7 +12,9 @@ import com.jme3.scene.Node;
 import com.jme3.scene.shape.Box;
 import com.jme3.texture.Texture;
 import com.jme3.ai.agents.Agent;
+import com.jme3.ai.navmesh.Cell;
 import com.jme3.ai.navmesh.DebugInfo;
+import com.jme3.ai.navmesh.NavMesh;
 import com.jme3.ai.navmesh.NavMeshPathfinder;
 import com.jme3.ai.navmesh.Path;
 import com.jme3.ai.navmesh.Path.Waypoint;
@@ -27,9 +29,13 @@ import com.jme3.math.Vector3f;
 import com.jme3.scene.Mesh;
 import com.jme3.scene.Spatial;
 import com.jme3.scene.VertexBuffer;
+import java.lang.reflect.Array;
+import java.rmi.UnexpectedException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.logging.Level;
@@ -39,12 +45,22 @@ import massim.DataManager;
 import massim.Main;
 import java.util.Random;
 import massim.Utility;
+import massim.behavior.BlindlyEvacuateBehavior;
+import massim.behavior.ExploreBehavior;
 
 /**
  *
  * @author TungPT
  */
 public class AgentNode extends Node implements AnimEventListener{
+    
+    public enum AgentMode{
+        EXPLORATION, EVACUATION
+    }
+    
+    public enum Evacuation{
+        KNOWINGLY,UNKNOWINGLY,GUIDED
+    }
     private static final Logger logger = Logger.getLogger(AgentNode.class.getName());
     private BetterCharacterControl bodyPhy;
     private SimpleMainBehavior behavior;
@@ -52,8 +68,9 @@ public class AgentNode extends Node implements AnimEventListener{
     private Geometry people_geo;
     private boolean beh;
     private NavMeshPathfinder pathFinder;
-    private Path path;
-    private Waypoint nextTarget=null;
+    
+    
+    private Cell targetedCell = null;
     private int wpi;
     
     //Characteristics
@@ -61,15 +78,44 @@ public class AgentNode extends Node implements AnimEventListener{
     private byte gender;
     private float radius = Config.AGENT_RADIUS;
     //
-    private float velocity = 10;
+    private float velocity = 5;
+    private float urgentVelocity = 7;
+    private float vision = 70;
     private int agentId = 0;
     private static int idCounter = 0;
     
     private boolean isGeneratingPath;
     
-    public Path getPath() {
-        return path;
+    ExploreBehavior explore;
+    BlindlyEvacuateBehavior blindlyEvacuate;
+    
+    private Evacuation evacuation = Evacuation.UNKNOWINGLY;
+    
+    public AgentMode mode = AgentMode.EXPLORATION;
+    
+//    private HashMap<String,CellMark> cellsDict;
+    
+    
+    Random rndGenerator = new Random();
+
+    public float getRadius() {
+        return radius;
     }
+
+    
+    public float getVision() {
+        return vision;
+    }
+
+    public float getVelocity() {
+        return velocity;
+    }
+
+    public Geometry getGeometry() {
+        return people_geo;
+    }
+    
+    
 
     public int getAgentId() {
         return agentId;
@@ -120,7 +166,7 @@ public class AgentNode extends Node implements AnimEventListener{
     public AgentNode(String name) {
         super(name);
         //Init agent in shape of a box
-        Box people = new Box(1f,2f,1f);
+        Box people = new Box(0.5f,1f,0.5f);
         
         people_geo = new Geometry("Agent", people);
         
@@ -134,7 +180,8 @@ public class AgentNode extends Node implements AnimEventListener{
         attachChild(people_geo);
         people_geo.setLocalTranslation(0f, 20f, 0f);
         
-        bodyPhy = new BetterCharacterControl(1.5f, 4f, 70f);
+        bodyPhy = new BetterCharacterControl(1f, 2f, 70f);
+        
         
         
         bodyPhy.setJumpForce(new Vector3f(0,5f,0)); 
@@ -158,20 +205,21 @@ public class AgentNode extends Node implements AnimEventListener{
         
         //Init path finder
         if (Main.app().getEnv().getNavMesh() != null){
-            pathFinder = new NavMeshPathfinder(Main.app().getEnv().getNavMesh());
-            pathFinder.setEntityRadius(Math.max(radius, Config.AGENT_DEVIATION));
             
-            randomWalk();
+            
+//            randomWalk();
+            
+//            explore();
+            explore = new ExploreBehavior(Main.app().getEnv(), this);
+            blindlyEvacuate = new BlindlyEvacuateBehavior(Main.app().getEnv(), this);
         }
-        
-
     }
     
     private synchronized void randomWalk(){
         isGeneratingPath = true;
         logger.log(Level.INFO,"Generate random path");
         Vector3f tar = people_geo.getWorldTranslation();
-        Random rndGenerator = new Random();
+        
         
         ArrayList<GhostControl> dcs = Main.app().getEnv().getDoorControls();
         GhostControl gc = dcs.get(rndGenerator.nextInt(dcs.size()));
@@ -189,16 +237,14 @@ public class AgentNode extends Node implements AnimEventListener{
         DebugInfo di = new DebugInfo();
         boolean success = pathFinder.computePath(new Vector3f(tar),di); //compute path to destination
         logger.log(Level.INFO,"PATH FINDING DEBUG INFO: {0}",new Object[]{di.toString()});
-//        if (!success) {
-//            randomWalk();
-//            return;
-//        }
+
         //Get path from path finder
-        path = pathFinder.getPath();
-        removeDuplicates();
+//        path = pathFinder.getPath();
+        
+//        removeDuplicates();
         wpi = -1;
         
-        Utility.showPath(this, ColorRGBA.Blue);
+//        Utility.showPath(this, ColorRGBA.Blue);
         isGeneratingPath = false;
     }
     
@@ -219,24 +265,7 @@ public class AgentNode extends Node implements AnimEventListener{
         
         
     }
-    /**
-     * Remove duplicates from ArrayList
-     * @param l
-     * @return 
-     */
-    private void removeDuplicates() {
-    // ... the list is already populated
-        int i = 0;
-        while (i < path.getWaypoints().size()-1){
-            Waypoint wp1 = path.getWaypoints().get(i);
-            Waypoint wp2 = path.getWaypoints().get(i+1);
-            if (wp1.getPosition().equals(wp2.getPosition())){
-                path.getWaypoints().remove(i);
-            } else {
-                i ++;
-            }
-        }
-    }
+    
     
     @Override
     public void onAnimCycleDone(AnimControl control, AnimChannel channel, String animName) {
@@ -257,32 +286,32 @@ public class AgentNode extends Node implements AnimEventListener{
         bodyPhy.setViewDirection(new Vector3f(x,0f,z));
         
     }
+    public void adjustDirectionByTarget( Cell cell){
+        Vector3f cur = people_geo.getWorldTranslation();
+        Vector3f tar = cell.getCenter();
+        float dis = cur.distance(tar);
+        float x = (tar.x - cur.x)/dis*velocity;
+        float z = (tar.z - cur.z)/dis*velocity;
+        bodyPhy.setWalkDirection(new Vector3f(x,0f,z));
+        bodyPhy.setViewDirection(new Vector3f(x,0f,z));
+        
+    }
     public boolean didReachTarget(Waypoint waypoint){
         logger.log(Level.INFO,"Distance to target: {0}", new Object[]{waypoint.getPosition().distance(people_geo.getWorldTranslation())});
         return waypoint.getPosition().distance(people_geo.getWorldTranslation()) <= Config.AGENT_DEVIATION;
     }
+    public boolean didReachTarget(Cell cell){
+        return cell.getCenter().distance(people_geo.getWorldTranslation()) <= Config.AGENT_DEVIATION;
+    }
+    
     public void update(float fps){
-        if (path == null || isGeneratingPath) return;
-        
-        if (nextTarget==null || didReachTarget(nextTarget)){
-            wpi ++;
+        if (mode == AgentMode.EXPLORATION){
+            explore.update(fps);
+//            blindlyEvacuate.update(fps);
+        } else if (mode == AgentMode.EVACUATION){
             
-            if (wpi < path.getWaypoints().size()){
-                nextTarget = path.getWaypoints().get(wpi);
-            }
-            else {
-                bodyPhy.setWalkDirection(Vector3f.NAN);
-                path = null;
-                nextTarget = null;
-                randomWalk();
-                return;
-            }
         }
-        if (nextTarget != null){
-            this.adjustDirectionByTarget(nextTarget);
-            logger.log(Level.INFO,"Agent Position: {0}",new Object[]{people_geo.getWorldTranslation()});
-            logger.log(Level.INFO, "Direction: {0} Target: {1}", new Object[]{bodyPhy.getWalkDirection().toString(), nextTarget.getPosition().toString()});
-        }
+        
         DataManager.logByAgent(this);
     }
 }

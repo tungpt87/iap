@@ -47,19 +47,19 @@ public class Utility {
         bw.write(content);
         bw.close();
     }
-    public static void showPath(AgentNode agent, ColorRGBA color){
-        Material mat = new Material(Main.app().getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
-        mat.setColor("Color", color);
-        Path path = agent.getPath();
-        Node node = new Node(agent.getName()+"_Path");
-        for (Path.Waypoint wp : path.getWaypoints()){
-            Box b = new Box(2, 1, 2);
-            Geometry geo = new Geometry("WayPoint",b);
-            geo.setMaterial(mat);
-            geo.setLocalTranslation(wp.getPosition());
-            node.attachChild(geo);
-        }
-        Main.app().getRootNode().detachChildNamed(agent.getName()+"_Path");
-        Main.app().getRootNode().attachChild(node);
-    }
+//    public static void showPath(AgentNode agent, ColorRGBA color){
+//        Material mat = new Material(Main.app().getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+//        mat.setColor("Color", color);
+//        Path path = agent.getPath();
+//        Node node = new Node(agent.getName()+"_Path");
+//        for (Path.Waypoint wp : path.getWaypoints()){
+//            Box b = new Box(2, 1, 2);
+//            Geometry geo = new Geometry("WayPoint",b);
+//            geo.setMaterial(mat);
+//            geo.setLocalTranslation(wp.getPosition());
+//            node.attachChild(geo);
+//        }
+//        Main.app().getRootNode().detachChildNamed(agent.getName()+"_Path");
+//        Main.app().getRootNode().attachChild(node);
+//    }
 }

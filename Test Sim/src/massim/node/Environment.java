@@ -76,18 +76,32 @@ public class Environment extends BatchNode{
     
     private int[][] links;
     
-    NavMesh navMesh;
+    private NavMesh navMesh;
     
-    RigidBodyControl bodyControl;
+    private RigidBodyControl bodyControl;
 
     
-    Building building;
-    Level level;
+    private Building building;
+    private Level level;
     
-    com.jme3.scene.Node doorsNode;
+    private com.jme3.scene.Node doorsNode;
+    
+    private com.jme3.scene.Node boundsNode;
     
     private Site scene = null;
 
+    public Building getBuilding() {
+        return building;
+    }
+
+    
+    
+    public com.jme3.scene.Node getBoundsNode() {
+        return boundsNode;
+    }
+
+    
+    
     public com.jme3.scene.Node getDoorsNode() {
         return doorsNode;
     }
@@ -215,6 +229,82 @@ public class Environment extends BatchNode{
         this.getChild(0).addControl(bodyControl);
         buildNavMesh();
         addDoors();
+        addBoundary();
+    }
+    
+    private void addBoundary(){
+        boundsNode = new com.jme3.scene.Node("Bounds");
+        Material mat = new Material(Main.app().getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
+        mat.getAdditionalRenderState().setWireframe(true);
+        ColorRGBA c = ColorRGBA.Pink;
+        c.set(c.getRed(), c.getGreen(), c.getBlue(), 0.0f);
+        mat.setColor("Color", c);
+        
+        
+        Level firstLevel = building.getLevels().get(0);
+        Vector3f center = new Vector3f(firstLevel.getMinX()/Config.MODEL_SCALE + 2.5f ,
+                50,
+                (firstLevel.getMaxY()-firstLevel.getMinY())/Config.MODEL_SCALE/2+firstLevel.getMinY()/Config.MODEL_SCALE);
+        Vector3f extent = new Vector3f(center.x - firstLevel.getMinX()/Config.MODEL_SCALE, 
+                50, 
+                center.z - firstLevel.getMinY()/Config.MODEL_SCALE);
+        extent.z *= 2;
+        extent.x *= 2;
+        center.x *= 2;
+        Box b = new Box(extent.x, extent.y, extent.z);
+        Geometry g = new Geometry("Bound",b);
+        g.setMaterial(mat);
+        boundsNode.attachChild(g);
+        g.setLocalTranslation(center);
+        
+        GhostControl gc = new GhostControl(new BoxCollisionShape(extent));
+        
+        g.addControl(gc);
+        
+        ////
+        center.x = level.getMaxX()/Config.MODEL_SCALE*2 - extent.x;
+        b = new Box(extent.x, extent.y, extent.z);
+        g = new Geometry("Bound",b);
+        g.setMaterial(mat);
+        boundsNode.attachChild(g);
+        g.setLocalTranslation(center);
+        
+        gc = new GhostControl(new BoxCollisionShape(extent));
+        g.addControl(gc);
+        
+        
+        /////
+        center = new Vector3f((firstLevel.getMaxX() - firstLevel.getMinX())/Config.MODEL_SCALE/2+firstLevel.getMinX()/Config.MODEL_SCALE ,
+                50,
+                firstLevel.getMinY()/Config.MODEL_SCALE + 2.5f);
+        extent = new Vector3f(center.x - firstLevel.getMinX()/Config.MODEL_SCALE, 
+                50, 
+                center.z - firstLevel.getMinY()/Config.MODEL_SCALE);
+        extent.z *= 2;
+        extent.x *= 2;
+        center.z *= 2;
+        b = new Box(extent.x, extent.y, extent.z);
+        g = new Geometry("Bound",b);
+        g.setMaterial(mat);
+        boundsNode.attachChild(g);
+        g.setLocalTranslation(center);
+        
+        
+        
+        gc = new GhostControl(new BoxCollisionShape(extent));
+        
+        g.addControl(gc);
+        
+        ////
+        center.z = level.getMaxY()/Config.MODEL_SCALE*2 - extent.z;
+        b = new Box(extent.x, extent.y, extent.z);
+        g = new Geometry("Bound",b);
+        g.setMaterial(mat);
+        boundsNode.attachChild(g);
+        g.setLocalTranslation(center);
+        
+        gc = new GhostControl(new BoxCollisionShape(extent));
+        g.addControl(gc);
     }
     
     private void addDoors(){
@@ -228,6 +318,7 @@ public class Environment extends BatchNode{
             }
         }
     }
+    
     
     private void drawDoor(Door d){
         Material mat = new Material(Main.app().getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
@@ -287,10 +378,10 @@ public class Environment extends BatchNode{
                 45f, //maxTraversableSlope
                 false, //clipLedges
                 2f, //traversableAreaBorderSize
-                5, //smoothingThreshold
+                1, //smoothingThreshold
                 true, //useConservativeExpansion
                 10, //minUnconnectedRegionSize
-                1, //mergeRegionSize
+                5, //mergeRegionSize
                 10, //maxEdgeLength
                 1, //edgeMaxDeviation
                 100, //maxVertsPerPoly
@@ -337,8 +428,8 @@ public class Environment extends BatchNode{
         
         //TODO: If the currently built level is the first level, make the floor extent 2 times bigger
         if (level.getZLevel()== building.getLevels().get(0).getZLevel()){
-            extent.x *= 2;
-            extent.z *=2;
+            extent.x = extent.x * 2;
+            extent.z = extent.z * 2;
         }
         
         
@@ -346,7 +437,6 @@ public class Environment extends BatchNode{
         floor.setType(CSG.BrushType.ADDITIVE);
         CSGNode floor_geo = new CSGNode();
         floor_geo.addBrush(floor);
-//        floor_geo.setLocalTranslation(new Vector3f(30f, level.getZcoor(), 30f));
 		
 	Material floor_mat = new Material(Main.app().getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
         TextureKey key3 = new TextureKey("Textures/Terrain/Pond/Pond1.png");
